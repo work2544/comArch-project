@@ -1,0 +1,8 @@
+add 1 2 1
+nand x1 x2
+lw x1 x2
+sw
+beq
+jalr
+halr
+noop
