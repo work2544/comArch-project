@@ -1,8 +1,11 @@
 import os
 from pickletools import opcodes
 
-""" Checks if value is a string or number"""
+from numpy import int32
+
+
 def isNumber(value):
+    """ Checks if value is a string or number"""
     try:
         float(value)   # Type-casting the string to `float`.
                    # If string is not a valid `float`, 
@@ -34,7 +37,7 @@ def get_opcode(name_of_instruction):
     elif name_of_instruction == 'jalr':
         opcode = 0b101
         type = 'J'
-    elif name_of_instruction == 'halr':
+    elif name_of_instruction == 'halt':
         opcode = 0b110
         type = 'O'
     elif name_of_instruction == 'noop':
@@ -82,8 +85,9 @@ def get_offset(field3):
 
     if isNumber(field3):
         field3=int(field3)
+
         if (field3 < 0):
-            field3 = field3 & 0b1111111111111111  
+            field3 = field3 % (1<<16)
     else:
         pass
 
@@ -93,28 +97,37 @@ def get_offset(field3):
 """Get All Files From Directory"""
 assembly_path = 'assemby_code/'
 assembly_code = os.listdir(assembly_path)
-
-
 """Open Assembly Files """
-f = open(os.path.join(assembly_path, assembly_code[0]), 'r')
+f = open(os.path.join(assembly_path, assembly_code[1]), 'r')
 
 
 """Add All Assembly To Array"""
-ALL_INSTRUCTION = []
+All_INSTRUCTION = []
+All_MACHINECODE = []
 for N in f:
-    ALL_INSTRUCTION.append(N.replace("\n", ""))
-    
-setOfLabels = [{}]
+    All_INSTRUCTION.append(N.replace("\n", "").split())
+ZERO = 0
+LabelsDict = {}
+
+
+Resgister ={
+    '0' :ZERO,
+    '1' :0,
+    '2' :0,
+    '3' :0,
+    '4' :0,
+    '5' :0,
+    '6' :0,
+    '7' :0
+}
 
 """Loop through Assembly To Generate Machine_Code"""
-for N in ALL_INSTRUCTION:
-    
-    
-    print(N)
-    Current_Instruction = N.split()
-    Machine_Code = opcode = type = regA = regB =  0b0
-    destReg = offsetField = None
-    if  Current_Instruction[0] in ['add','nand','lw','sw','beq','jalr','halr','noop']: # no label case
+for i in range(len(All_INSTRUCTION)-1,-1,-1):
+    Current_Instruction=All_INSTRUCTION[i]
+    print(Current_Instruction)
+    Machine_Code = opcode = regA = regB =  0b0
+    destReg = offsetField = type = None
+    if  Current_Instruction[0] in ['add','nand','lw','sw','beq','jalr','halt','noop']: # no label in instruction case
         
         """
         # Current_Instruction[0] is name of instruction , 
@@ -125,9 +138,9 @@ for N in ALL_INSTRUCTION:
         """
         opcode, type = get_opcode(Current_Instruction[0])
         if type == 'R':
-            regA = get_regA(Current_Instruction[2])
-            regB = get_regB(Current_Instruction[3])
-            destReg = get_desReg(Current_Instruction[1])
+            regA = get_regA(Current_Instruction[1])
+            regB = get_regB(Current_Instruction[2])
+            destReg = get_desReg(Current_Instruction[3])
             Machine_Code =  (opcode << 22) | (regA<<19) | (regB<<16) | destReg
         elif type == 'I':
             regA = get_regA(Current_Instruction[1])
@@ -141,31 +154,49 @@ for N in ALL_INSTRUCTION:
         elif type == 'O':
             Machine_Code = (opcode<<22)
             
-    else: #label case
+    else: #label in instruction case
         
-        """
-        # Current_Instruction[0] is name of label , 
-        # Current_Instruction[1] is name of instruction , 
-        # Current_Instruction[2] is name of regDest ,
-        # Current_Instruction[3] is name of regA ,
-        # Current_Instruction[4] is  regB or offset.
+        if(Current_Instruction[1]=='.fill'):
+            if isNumber(Current_Instruction[2]):
+                LabelsDict[Current_Instruction[0]] = int(Current_Instruction[2]) % (1<<32)
+            else:
+                for i in range(0, len(Current_Instruction)-1):
+                    if(Current_Instruction[i] == Current_Instruction[2]):
+                        LabelsDict[Current_Instruction[0]] = i
+            Machine_Code = LabelsDict[Current_Instruction[0]]
 
-        """
-        print("Label: ",Current_Instruction[0])
-        opcode, type = get_opcode(Current_Instruction[1])
-        if type == 'R':
-            regA = get_regA(Current_Instruction[3], type)
-            regB = get_regB(Current_Instruction[4], type)
-            destReg = get_desReg(Current_Instruction[2], type)
-        elif type == 'I':
-            regA = get_regA(Current_Instruction[2], type)
-            regB = get_regB(Current_Instruction[3], type)
-            offsetField = get_offset(Current_Instruction[4], type)
-        elif type == 'J':
-            regA = get_regA(Current_Instruction[2], type)
-            regB = get_regB(Current_Instruction[3], type)
-        elif type == 'O':
-            pass
+        else:
+            
+            """
+            # Current_Instruction[0] is name of label , 
+            # Current_Instruction[1] is name of instruction , 
+            # Current_Instruction[2] is name of regDest ,
+            # Current_Instruction[3] is name of regA ,
+            # Current_Instruction[4] is  regB or offset.
+
+            """
+            print("Label: ",Current_Instruction[0])
+            opcode, type = get_opcode(Current_Instruction[1])
+            if type == 'R':
+                regA = get_regA(Current_Instruction[2])
+                regB = get_regB(Current_Instruction[3])
+                destReg = get_desReg(Current_Instruction[4])
+            elif type == 'I':
+                regA = get_regA(Current_Instruction[2])
+                regB = get_regB(Current_Instruction[3])
+                offsetField = get_offset(Current_Instruction[4])
+            elif type == 'J':
+                regA = get_regA(Current_Instruction[2])
+                regB = get_regB(Current_Instruction[3])
+            elif type == 'O':
+                Machine_Code = (opcode<<22)
     #print(f"opcode: {bin(opcode)} regA: {bin(regA)} regB: {bin(regB)} destReg: {bin(destReg) if destReg is not None else None} offsetField: {bin(offsetField) if offsetField is not None else None}")
-    print(f"Machine_Code: {format((Machine_Code),'#032b')}")
+    print(f"Machine_Code: {format(Machine_Code,'#x')}")
+    All_MACHINECODE.insert(0,format((Machine_Code),'032b'))
 
+
+
+
+# for N in ALL_MACHINECODE:
+#     hstr = '%0*X' % ((len(N) + 3) // 4, int(N, 2))
+#     print(hstr)
