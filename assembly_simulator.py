@@ -73,24 +73,25 @@ def get_regB(field3):
 
 
 def get_desReg(field0):
-    if not isNumber(field0):
-        pass
-    else:
-        field0 = int(field0)
-
+    field0 = int(field0)
     return field0
 
 
-def get_offset(field3):
+def get_offset(name,field3,idx):
 
     if isNumber(field3):
         field3=int(field3)
-
-        if (field3 < 0):
-            field3 = field3 % (1<<16)
     else:
-        pass
-
+        for i in range(0, len(All_INSTRUCTION)): #get address of the label
+            if All_INSTRUCTION[i][0]== field3:
+                field3 = i
+                break
+        if(name == 'beq'):
+            field3 = field3 - idx - 1 # because PC + 1 after excution 
+    
+    if (field3 < 0):
+            field3 = field3 % (1<<16)
+            
     return field3
 
 
@@ -98,7 +99,7 @@ def get_offset(field3):
 assembly_path = 'assemby_code/'
 assembly_code = os.listdir(assembly_path)
 """Open Assembly Files """
-f = open(os.path.join(assembly_path, assembly_code[1]), 'r')
+f = open(os.path.join(assembly_path, assembly_code[2]), 'r')
 
 
 """Add All Assembly To Array"""
@@ -106,10 +107,10 @@ All_INSTRUCTION = []
 All_MACHINECODE = []
 for N in f:
     All_INSTRUCTION.append(N.replace("\n", "").split())
+    
+    
+    
 ZERO = 0
-LabelsDict = {}
-
-
 Resgister ={
     '0' :ZERO,
     '1' :0,
@@ -122,12 +123,11 @@ Resgister ={
 }
 
 """Loop through Assembly To Generate Machine_Code"""
-for i in range(len(All_INSTRUCTION)-1,-1,-1):
-    Current_Instruction=All_INSTRUCTION[i]
-    print(Current_Instruction)
+for idx in range(0,len(All_INSTRUCTION)):
+    Current_Instruction=All_INSTRUCTION[idx]
     Machine_Code = opcode = regA = regB =  0b0
     destReg = offsetField = type = None
-    if  Current_Instruction[0] in ['add','nand','lw','sw','beq','jalr','halt','noop']: # no label in instruction case
+    if  Current_Instruction[0] in ['add','nand','lw','sw','beq','jalr','halt','noop','.fill']: # no label in instruction case
         
         """
         # Current_Instruction[0] is name of instruction , 
@@ -136,62 +136,60 @@ for i in range(len(All_INSTRUCTION)-1,-1,-1):
         # Current_Instruction[3] is  regB or offset.
 
         """
-        opcode, type = get_opcode(Current_Instruction[0])
-        if type == 'R':
-            regA = get_regA(Current_Instruction[1])
-            regB = get_regB(Current_Instruction[2])
-            destReg = get_desReg(Current_Instruction[3])
-            Machine_Code =  (opcode << 22) | (regA<<19) | (regB<<16) | destReg
-        elif type == 'I':
-            regA = get_regA(Current_Instruction[1])
-            regB = get_regB(Current_Instruction[2])
-            offsetField = get_offset(Current_Instruction[3])
-            Machine_Code = (opcode<<22) | (regA<<19) | (regB<<16) | offsetField
-        elif type == 'J':
-            regA = get_regA(Current_Instruction[1])
-            regB = get_regB(Current_Instruction[2])
-            Machine_Code = (opcode<<22) | (regA<<19) | (regB<<16)
-        elif type == 'O':
-            Machine_Code = (opcode<<22)
-            
-    else: #label in instruction case
-        
-        if(Current_Instruction[1]=='.fill'):
-            if isNumber(Current_Instruction[2]):
-                LabelsDict[Current_Instruction[0]] = int(Current_Instruction[2]) % (1<<32)
-            else:
-                for i in range(0, len(Current_Instruction)-1):
-                    if(Current_Instruction[i] == Current_Instruction[2]):
-                        LabelsDict[Current_Instruction[0]] = i
-            Machine_Code = LabelsDict[Current_Instruction[0]]
-
+        if(Current_Instruction[0] != '.fill'):
+            opcode, type = get_opcode(Current_Instruction[0])
+            if type == 'R':
+                regA = get_regA(Current_Instruction[1])
+                regB = get_regB(Current_Instruction[2])
+                destReg = get_desReg(Current_Instruction[3])
+                Machine_Code =  (opcode << 22) | (regA<<19) | (regB<<16) | destReg
+            elif type == 'I':
+                regA = get_regA(Current_Instruction[1])
+                regB = get_regB(Current_Instruction[2])
+                offsetField = get_offset(Current_Instruction[0],Current_Instruction[3],idx)
+                Machine_Code = (opcode<<22) | (regA<<19) | (regB<<16) | offsetField
+            elif type == 'J':
+                regA = get_regA(Current_Instruction[1])
+                regB = get_regB(Current_Instruction[2])
+                Machine_Code = (opcode<<22) | (regA<<19) | (regB<<16)
+            elif type == 'O':
+                Machine_Code = (opcode<<22)
         else:
-            
+            Machine_Code = int(Current_Instruction[1])
+    else: #label in instruction case
+
             """
             # Current_Instruction[0] is name of label , 
             # Current_Instruction[1] is name of instruction , 
-            # Current_Instruction[2] is name of regDest ,
-            # Current_Instruction[3] is name of regA ,
-            # Current_Instruction[4] is  regB or offset.
+            # Current_Instruction[2] is name of regA ,
+            # Current_Instruction[3] is name of regB ,
+            # Current_Instruction[4] is  destReg or offset.
 
             """
-            print("Label: ",Current_Instruction[0])
-            opcode, type = get_opcode(Current_Instruction[1])
-            if type == 'R':
-                regA = get_regA(Current_Instruction[2])
-                regB = get_regB(Current_Instruction[3])
-                destReg = get_desReg(Current_Instruction[4])
-            elif type == 'I':
-                regA = get_regA(Current_Instruction[2])
-                regB = get_regB(Current_Instruction[3])
-                offsetField = get_offset(Current_Instruction[4])
-            elif type == 'J':
-                regA = get_regA(Current_Instruction[2])
-                regB = get_regB(Current_Instruction[3])
-            elif type == 'O':
-                Machine_Code = (opcode<<22)
+            
+            if(Current_Instruction[1] != '.fill'):
+                opcode, type = get_opcode(Current_Instruction[1])
+                if type == 'R':
+                    regA = get_regA(Current_Instruction[2])
+                    regB = get_regB(Current_Instruction[3])
+                    destReg = get_desReg(Current_Instruction[4])
+                    Machine_Code =  (opcode << 22) | (regA<<19) | (regB<<16) | destReg
+                elif type == 'I':
+                    regA = get_regA(Current_Instruction[2])
+                    regB = get_regB(Current_Instruction[3])
+                    offsetField = get_offset(Current_Instruction[1],Current_Instruction[4],idx)
+                    Machine_Code = (opcode<<22) | (regA<<19) | (regB<<16) | offsetField
+                elif type == 'J':
+                    regA = get_regA(Current_Instruction[2])
+                    regB = get_regB(Current_Instruction[3])
+                    Machine_Code = (opcode<<22) | (regA<<19) | (regB<<16)
+                elif type == 'O':
+                    Machine_Code = (opcode<<22)
+            else:
+                Machine_Code = get_offset(Current_Instruction[1],Current_Instruction[2],idx)
+                    
     #print(f"opcode: {bin(opcode)} regA: {bin(regA)} regB: {bin(regB)} destReg: {bin(destReg) if destReg is not None else None} offsetField: {bin(offsetField) if offsetField is not None else None}")
-    print(f"Machine_Code: {format(Machine_Code,'#x')}")
+    print(f"Machine_Code: {Machine_Code} ({format(Machine_Code,'#x')})")
     All_MACHINECODE.insert(0,format((Machine_Code),'032b'))
 
 
